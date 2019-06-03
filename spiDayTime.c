@@ -45,11 +45,18 @@ int main(void)
   int fd;
   int spi_chan = 0;
   unsigned char daytime[3];
+  // update interval, in seconds
+  // one update is made per interval. Example:
+  // update_interval = 3600 means one update per hour, on the hour.
+  // (But upon program start, one update is done right away.)
+  const unsigned int update_interval = 10 * 60;
 
   wiringPiSetup();
   fd = spiSetup(spi_chan, 1);
   while (1) {
     unsigned int seconds_in_day = get_seconds_in_day();
+    // compute delay until the start of the next interval
+    unsigned int delay_val = update_interval - (seconds_in_day % update_interval);
     // MS byte first
     spi_encode(seconds_in_day, daytime);
 
@@ -59,9 +66,10 @@ int main(void)
       printf("SPI failure: %s\n", strerror(errno));
       break;
     }
-    printf("txdata: %d\n", seconds_in_day);
+    printf("txdata: %u (delay_val: %u)\n", seconds_in_day, delay_val);
 
-    delay(10000);
+    // delay_val in seconds, delay expects milliseconds.
+    delay(delay_val * 1000);
   }
 
   close(fd);
