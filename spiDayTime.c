@@ -35,16 +35,38 @@ unsigned int get_seconds_in_day()
 
 void spi_encode(unsigned int seconds_in_day, unsigned char daytime[3])
 {
-  daytime[0] = (seconds_in_day & 0xFF0000) >> 16;
-  daytime[1] = (seconds_in_day & 0xFF00) >> 8;
-  daytime[2] = seconds_in_day & 0xFF;
+  // MS byte is at index 0
+  unsigned char checksum = 0;
+  daytime[1] = (seconds_in_day & 0xFF0000) >> 16;
+  daytime[2] = (seconds_in_day & 0xFF00) >> 8;
+  daytime[3] = seconds_in_day & 0xFF;
+
+  for (int i = 1; i <= 3; ++i) {
+    checksum += daytime[i];
+  }
+  checksum ^= 0xFF;
+  daytime[0] = checksum;
+}
+
+// convert data payload to the byte ordering seen on the other
+// end of the SPI interface.
+unsigned int to_int(unsigned char bytes[4])
+{
+  unsigned int val = 0;
+
+  for (int i = 0; i < 4; ++i) {
+    val <<= 8;
+    val += bytes[i];
+  }
+
+  return val;
 }
 
 int main(void)
 {
   int fd;
   int spi_chan = 0;
-  unsigned char daytime[3];
+  unsigned char daytime[4];
   // update interval, in seconds
   // one update is made per interval. Example:
   // update_interval = 3600 means one update per hour, on the hour.
@@ -57,16 +79,20 @@ int main(void)
     unsigned int seconds_in_day = get_seconds_in_day();
     // compute delay until the start of the next interval
     unsigned int delay_val = update_interval - (seconds_in_day % update_interval);
-    // MS byte first
     spi_encode(seconds_in_day, daytime);
+    // if (!!(daytime[3] & 1) ^ !!(daytime[3] & 2) ^ !!(daytime[3] & 4) ^ !!(daytime[3] & 8)) {
+    //   daytime[0] ^= 0x80;
+    //   printf("  wrecking checksum\n");
+    // }
+
+    printf("txdata: %u [0x%08X] (delay_val: %u)\n", seconds_in_day, to_int(daytime), delay_val);
 
     // the buffer is transmitted index-0-first
     // bytes are transmitted MSB first.
-    if (wiringPiSPIDataRW(spi_chan, daytime, 3) == -1) {
+    if (wiringPiSPIDataRW(spi_chan, daytime, 4) == -1) {
       printf("SPI failure: %s\n", strerror(errno));
       break;
     }
-    printf("txdata: %u (delay_val: %u)\n", seconds_in_day, delay_val);
 
     // delay_val in seconds, delay expects milliseconds.
     delay(delay_val * 1000);
