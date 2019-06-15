@@ -73,6 +73,10 @@ int main(void)
   // (But upon program start, one update is done right away.)
   const unsigned int update_interval = 10 * 60;
 
+  // set stdout to be unbuffered, so the occasional log file messages
+  // go out straightaway.
+  setbuf(stdout, NULL);
+
   wiringPiSetup();
   fd = spiSetup(spi_chan, 1);
   while (1) {
