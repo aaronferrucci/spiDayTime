@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
@@ -18,11 +19,26 @@ int spiSetup(int chan, int speed)
   return fd;
 }
 
+// block until new second
+void wait_for_time_boundary()
+{
+  struct timeval te;
+  suseconds_t te_last = -1;
+  gettimeofday(&te, NULL);
+  while (1) {
+    gettimeofday(&te, NULL);
+    if (te.tv_usec < te_last) break;
+    te_last = te.tv_usec;
+  }
+}
+
 unsigned int get_seconds_in_day()
 {
   unsigned int secs = 0;
   time_t rawtime;
   struct tm *info;
+
+  wait_for_time_boundary();
   time(&rawtime);
   info = localtime(&rawtime);
 
